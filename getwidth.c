@@ -10,7 +10,8 @@
 # define _PATH_TTY	"/dev/tty"
 #endif
 
-#include <sys/ttold.h>
+/* #include <sys/ttold.h> */
+#include <sys/ttycom.h>
 
 #if HAVE_TERMIOS_H
 # include <termios.h>
