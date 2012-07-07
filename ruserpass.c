@@ -21,7 +21,7 @@ static char sccsid[] = "@(#)ruserpass.c	5.1 (Berkeley) 3/1/89";
 #endif				/* not lint */
 #endif				/* not __STDC__ */
 
-#include "config.h"
+#include "common.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -125,7 +125,7 @@ int ruserpass(char *host, char **aname, char **apass)
 		    break;
 		case PASSWD:
 		    if (fstat(fileno(cfile), &stb) >= 0 &&
-			(stb.st_mode & 077) != 0) {
+			(stb.st_mode & (S_IRWXG | S_IRWXO))) {
 			fprintf(stderr, "Error - .netrc file not correct mode.\n");
 			fprintf(stderr, "Remove password or correct mode.\n");
 			goto bad;
@@ -162,7 +162,7 @@ int ruserpass(char *host, char **aname, char **apass)
 	    if ((pp = getpwuid(getuid())) != NULL)
 		myname = pp->pw_name;
 	}
-	printf("Name (%s:%s): ", host, myname);
+	fprintf(stderr, "Name (%s:%s): ", host, myname);
 
 	(void) fgets(tmp, sizeof(tmp) - 1, stdin);
 	tmp[strlen(tmp) - 1] = '\0';

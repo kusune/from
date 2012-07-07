@@ -1,5 +1,5 @@
 #ifndef	lint
-static char md5ident[]="@(#)$Id: md5.c,v 1.4 1992/10/26 16:48:02 jromine Exp $";
+/* static char md5ident[]="@(#)$Id: md5.c,v 1.4 1992/10/26 16:48:02 jromine Exp $"; */
 #endif
 /* taken from RFC-1321/Appendix A.3 */
 
@@ -31,7 +31,7 @@ documentation and/or software.
 /* #include "global.h" */
 #include "md5.h"
 
-/* Constants for MD5Transform routine.
+/* Constants for MD5_Transform routine.
  */
 #define S11 7
 #define S12 12
@@ -50,7 +50,7 @@ documentation and/or software.
 #define S43 15
 #define S44 21
 
-static void MD5Transform PROTO_LIST ((UINT4 [4], unsigned char [64]));
+static void MD5_Transform PROTO_LIST ((UINT4 [4], unsigned char [64]));
 static void Encode PROTO_LIST
   ((unsigned char *, UINT4 *, unsigned int));
 static void Decode PROTO_LIST
@@ -101,7 +101,7 @@ Rotation is separate from addition to prevent recomputation.
 
 /* MD5 initialization. Begins an MD5 operation, writing a new context.
  */
-void MD5Init (context)
+void MD5_Init (context)
 MD5_CTX *context;                                        /* context */
 {
   context->count[0] = context->count[1] = 0;
@@ -124,7 +124,7 @@ MD5_CTX *context;                                        /* context */
   operation, processing another message block, and updating the
   context.
  */
-void MD5Update (context, input, inputLen)
+void MD5_Update (context, input, inputLen)
 MD5_CTX *context;                                        /* context */
 unsigned char *input;                                /* input block */
 unsigned int inputLen;                     /* length of input block */
@@ -147,10 +147,10 @@ unsigned int inputLen;                     /* length of input block */
   if (inputLen >= partLen) {
  MD5_memcpy
    ((POINTER)&context->buffer[index], (POINTER)input, partLen);
- MD5Transform (context->state, context->buffer);
+ MD5_Transform (context->state, context->buffer);
 
  for (i = partLen; i + 63 < inputLen; i += 64)
-   MD5Transform (context->state, &input[i]);
+   MD5_Transform (context->state, &input[i]);
 
  index = 0;
   }
@@ -166,7 +166,7 @@ unsigned int inputLen;                     /* length of input block */
 /* MD5 finalization. Ends an MD5 message-digest operation, writing the
   the message digest and zeroizing the context.
  */
-void MD5Final (digest, context)
+void MD5_Final (digest, context)
 unsigned char digest[16];                         /* message digest */
 MD5_CTX *context;                                       /* context */
 {
@@ -180,10 +180,10 @@ MD5_CTX *context;                                       /* context */
 */
   index = (unsigned int)((context->count[0] >> 3) & 0x3f);
   padLen = (index < 56) ? (56 - index) : (120 - index);
-  MD5Update (context, PADDING, padLen);
+  MD5_Update (context, PADDING, padLen);
 
   /* Append length (before padding) */
-  MD5Update (context, bits, 8);
+  MD5_Update (context, bits, 8);
   /* Store state in digest */
   Encode (digest, context->state, 16);
 
@@ -194,7 +194,7 @@ MD5_CTX *context;                                       /* context */
 
 /* MD5 basic transformation. Transforms state based on block.
  */
-static void MD5Transform (state, block)
+static void MD5_Transform (state, block)
 UINT4 state[4];
 unsigned char block[64];
 {

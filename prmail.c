@@ -16,11 +16,27 @@
 
 char heading[MAXSTATES][BUFSIZ * 10];
 
-int from(POP_SESSION *psp, int msg, int width)
+void print_header(void)
+{
+    if (*heading[HEAD_FROM])
+	printf("%s\n", decode(heading[HEAD_FROM]));
+    if (*heading[HEAD_SENDER])
+	printf("%s\n", decode(heading[HEAD_SENDER]));
+    if (*heading[HEAD_DATE])
+	printf("%s\n", decode(heading[HEAD_DATE]));
+    if (*heading[HEAD_TO])
+	printf("%s\n", decode(heading[HEAD_TO]));
+    if (*heading[HEAD_CC])
+	printf("%s\n", decode(heading[HEAD_CC]));
+    if (*heading[HEAD_SUBJ])
+	printf("%s\n", decode(heading[HEAD_SUBJ]));
+}
+
+int prmail(POP_SESSION *psp, int msg)
 {
     int header, state;
 
-    if (pop_sendcmd(psp, POP_CMD_TOP, msg, 0) != POP_OK) {
+    if (pop_sendcmd(psp, POP_CMD_RETR, msg) != POP_OK) {
 	fprintf(stderr, "Can not retrieve message %d\n", msg);
 	if (psp->status != POP_ERR) {
 	    return psp->status;
@@ -28,12 +44,16 @@ int from(POP_SESSION *psp, int msg, int width)
 	pop_session_close(psp);
 	exit(EX_PROTOCOL);
     }
-    header = 1, state = 0;
+    header = 1;
+    state = 0;
     *heading[HEAD_DATE] = NUL;
     *heading[HEAD_FROM] = NUL;
+    *heading[HEAD_TO] = NUL;
+    *heading[HEAD_CC] = NUL;
     *heading[HEAD_SUBJ] = NUL;
     *heading[HEAD_MSGID] = NUL;
     *heading[HEAD_SENDER] = NUL;
+
     do {
 	char *p;
 
@@ -46,8 +66,15 @@ int from(POP_SESSION *psp, int msg, int width)
 
 	p = psp->resp;
 
-	if (*p == NUL || *p == '\n')	/* null line */
+	if (*p == NUL || *p == '\n') {	/* null line */
+	    if (header) {
+		header = 0;
+		printf("########\n");
+		print_header();
+	    }
+	    printf("\n");
 	    continue;
+	}
 	if (header) {
 	    if (isspace(*p) && state) {
 		strcat(heading[state], "\n");
@@ -56,6 +83,10 @@ int from(POP_SESSION *psp, int msg, int width)
 		strcpy(heading[state = HEAD_FROM], p);
 	    else if (strncasecmp(p, "date:", 5) == 0)
 		strcpy(heading[state = HEAD_DATE], p);
+	    else if (strncasecmp(p, "to:", 3) == 0)
+		strcpy(heading[state = HEAD_TO], p);
+	    else if (strncasecmp(p, "cc:", 3) == 0)
+		strcpy(heading[state = HEAD_CC], p);
 	    else if (strncasecmp(p, "subject:", 8) == 0)
 		strcpy(heading[state = HEAD_SUBJ], p);
 	    else if (strncasecmp(p, "message-id:", 11) == 0)
@@ -64,31 +95,22 @@ int from(POP_SESSION *psp, int msg, int width)
 		strcpy(heading[state = HEAD_SENDER], p);
 	    else
 		state = 0;
+	} else {
+	    printf("%s\n", p);
 	}
     } while (psp->status == POP_CONT);
-
-    printf("%3d %s %-30s %s\n", msg,
-	   parse_date(heading[HEAD_DATE]),
-	   parse_from(heading[HEAD_FROM]),
-	   parse_subj(heading[HEAD_SUBJ], width - 48));
 
     return psp->status;
 }
 
 void do_main(POP_SESSION *psp, int msgs)
 {
-    int i, width;
-
-    width = getwidth();
-    if (width < 0) {
-	width = 80;
-    }
-    width--;
+    int i;
 
     for (i = 1; i <= msgs; i++) {
-	from(psp, i, width);
+	prmail(psp, i);
     }
-
     pop_session_close(psp);
+
     exit(EX_OK);
 }
