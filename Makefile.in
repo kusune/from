@@ -1,0 +1,54 @@
+#
+# Define the default POP server hostname to -DDEFAULT_POP_HOST
+# or modify the definition of DEFAULT_POP_HOST at the top part
+# of from.c
+#
+
+SRCDIR = @srcdir@
+
+CC = @CC@
+RM = @RM@ -f
+MV = @MV@ -f
+LN = @LN@ -f
+INSTALL = @INSTALL@
+
+prefix = @prefix@
+exec_prefix = @exec_prefix@
+bindir = @bindir@
+
+installbin = $(INSTALL) -s
+
+LIBS = @LIBS@
+LIBOBJS = @LIBOBJS@
+FROMOBJ = from.o md5.o ruserpass.o
+TARGET = from
+TARGET_ALIASES = @TARGET_ALIASES@
+
+CFLAGS = @CFLAGS@ -Wall
+LDFLAGS = @LDFLAGS@
+
+all: $(TARGET)
+
+$(TARGET): $(FROMOBJ) $(LIBOBJS)
+	$(CC) -o $(TARGET) $(LDFLAGS) $(FROMOBJ) $(LIBOBJS) $(LIBS)
+
+install: all
+	-$(MV) $(bindir)/$(TARGET) $(bindir)/$(TARGET).old
+	$(SRCDIR)/mkinstalldirs $(bindir)
+	$(installbin) -c -m 4711 -o root -g daemon $(TARGET) $(bindir)
+	( cd $(bindir); for i in $(TARGET_ALIASES); do \
+	    if [ -f "$${i}" ]; then $(MV) $${i} $${i}.old; fi; \
+	    $(LN) -s $(TARGET) $${i}; \
+	done )
+
+clean:
+	-$(RM) core a.out gmon.out *.o *~ *.save
+	-$(RM) $(TARGET)
+
+distclean: clean
+	-$(RM) config.cache config.log config.status config.h Makefile
+
+from.o: from.c config.h md5.h
+md5.o: md5.c md5.h
+ruserpass.o: ruserpass.c config.h
+strncasecmp.o: strncasecmp.c config.h
