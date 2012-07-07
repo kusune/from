@@ -29,6 +29,10 @@
 #include <signal.h>
 #include "md5.h"
 
+/* to get window size by ioctl(TIOCGWINSZ) */
+#include <sys/ioctl.h>
+#include <termios.h>
+
 #ifndef	POP
 #define	POP		"pop3"
 #endif				/* POP */
@@ -70,7 +74,7 @@ int getline(char *s, int n, FILE * iop);
 char *decode(char *p);
 char *parse_from(char *from);
 char *parse_date(char *date);
-char *parse_subj(char *subj);
+char *parse_subj(char *subj, int width);
 char *allocpy(char *buf);
 char *pop_auth(char *user, char *pass, char *response);
 void print_header(void);
@@ -238,12 +242,13 @@ char *decode(char *p)
 {
     static char buf[BUFSIZ * 10];
     char *q, *r, ch;
-    int len;
     unsigned long val;
 
     q = buf;
     while (*p) {
 	if (strncasecmp(p, "=?ISO-2022-JP?B?", 16) == 0) {
+	    int len;
+
 	    r = p + 16;
 	    len = strlen(r);
 	    while (*r && *r != '?' && len > 0) {
@@ -259,10 +264,7 @@ char *decode(char *p)
 		*q++ = *p++;
 		continue;
 	    }
-	    if (*r != NUL && isspace(*r)) {
-		*q++ = *p++;
-		continue;
-	    }
+
 	    /* examination passed! */
 	    p += 16;
 	    while (strncmp(p, "?=", 2) != 0) {
@@ -281,10 +283,7 @@ char *decode(char *p)
 		    *q++ = ch;
 	    }
 	    p += 2;
-	    if (*p == '\r' || *p == '\n') {
-		while (isspace(*p))
-		    p++;
-	    } else if (*p == ' ' || *p == '\t')
+	    while (isspace(*p))
 		p++;
 	} else {		/* no "=?ISO-2022-JP?B?" */
 	    *q++ = *p++;
@@ -312,8 +311,17 @@ void print_header(void)
 
 void do_from(int msgs)
 {
-    int i, header, state;
+    int i, header, state, width;
     char buf[BUFSIZ], *p, *fp, line[64];
+
+    {
+	struct winsize ws;
+	if (ioctl(2, TIOCGWINSZ, &ws) != 0) {
+	    width = 79;
+	} else {
+	    width = ws.ws_col - 1;
+	}
+    }
 
     for (i = 1; i <= msgs; i++) {
 	sprintf(line, "TOP %d 0", i);
@@ -364,7 +372,7 @@ void do_from(int msgs)
 	printf("%3d %s %-30s %s\n", i,
 	       parse_date(heading[HEAD_DATE]),
 	       fp,
-	       parse_subj(heading[HEAD_SUBJ]));
+	       parse_subj(heading[HEAD_SUBJ], width - 48));
     }
 
     putline(fw, "QUIT");
@@ -441,15 +449,16 @@ char *parse_date(char *date)
     return date_buf;
 }
 
-char *parse_subj(char *subj)
+char *parse_subj(char *subj, int width)
 {
     char *p;
-    int width, kanji;
+    int kanji;
 
     subj = decode(subj);
     if (strlen(subj) <= strlen("Subject:"))
 	return "";
-    width = 31, kanji = 0;
+
+    kanji = 0;
     subj += strlen("Subject:");
     while (isspace(*subj))
 	subj++;
@@ -469,11 +478,11 @@ char *parse_subj(char *subj)
 	    }
 	    p += 2;
 	    width -= 2;
-	} else if (*p == '\n' && width != 0) {
-	    *p++ = '\\';
+	} else if (isspace(*p) && width != 0) {
+	    *p++ = ' ';
 	    width -= 1;
 	    if (isspace(*p) && width != 0) {
-		*p++ = '\\';
+		*p++ = ' ';
 		width -= 1;
 	    }
 	    if (width == 0) {
@@ -498,11 +507,12 @@ void pop_init(int argc, char **argv)
     struct hostent *hp;
     struct servent *sp;
     struct sockaddr_in so, sr;
-    char *user, *ruser, *host, *p;
+    char *user = "", *ruser = "", *host = "", *p;
     int pop_port = 0;
     int s, s2, port;
     char buf[BUFSIZ], line[64];
     int apop = 0;
+    int rpop = 0;
     char *pass = NULL;
     char *cp;
 
@@ -524,6 +534,9 @@ void pop_init(int argc, char **argv)
 	    switch (*p) {
 	    case 'a':
 		apop = 1;
+		break;
+	    case 'R':
+		rpop = 1;
 		break;
 	    case 'd':
 		debug = 1;
@@ -549,14 +562,13 @@ void pop_init(int argc, char **argv)
 	exit(1);
     }
     if (argc == 2) {
-	if (*argv[1] != '@') {	/* username */
+	if ((p = rindex(argv[1], '@')) != NULL) {
+	    *(p++) = NUL;
+	    host = p;
+	}
+	if (*ruser != NUL) {
 	    ruser = argv[1];
-	    if ((p = index(argv[1], '@')) != NULL) {
-		*(p++) = NUL;
-		host = p;
-	    }
-	} else			/* hostname only */
-	    host = argv[1] + 1;
+	}
     }
     if (host == NULL) {
 	fprintf(stderr, "POP server is not given.\n");
@@ -608,7 +620,7 @@ void pop_init(int argc, char **argv)
      */
     bzero(&sr, sizeof(sr));
     sr.sin_family = hp->h_addrtype;
-    if (!apop) {
+    if (rpop) {
 	for (port = IPPORT_RESERVED - 1;;) {
 	    sr.sin_port = htons((u_short) port);
 #ifdef DEBUG
@@ -656,25 +668,22 @@ void pop_init(int argc, char **argv)
     /*
      * now in AUTHORIZATION state
      */
+    if (!rpop) {
+	ruserpass(host, &ruser, &pass);
+    }
     if (apop) {
-	if (user != ruser) {
-	    ruserpass(host, &ruser, &pass);
-	    cp = pop_auth(ruser, pass, buf);
-	} else {
-	    ruserpass(host, &user, &pass);
-	    cp = pop_auth(user, pass, buf);
-	}
-	if (cp) {
-	    sprintf(line, "APOP %s", cp);
-	    putline(fw, line);
-	} else {
+	cp = pop_auth(ruser, pass, buf);
+	if (cp == NULL) {
 	    fprintf(stderr, "Fail to get digest.\n");
 	    putline(fw, "QUIT");
 	    exit(1);
 	}
+
+	sprintf(line, "APOP %s", cp);
+	putline(fw, line);
 	getline(buf, sizeof(buf), fr);
 	if (strncmp(buf, "-ERR", 4) == 0) {
-	    fprintf(stderr, "%s\n", buf);
+	    fprintf(stderr, "%s: %s\n", ruser, buf);
 	    putline(fw, "QUIT");
 	    exit(1);
 	}
@@ -683,18 +692,20 @@ void pop_init(int argc, char **argv)
 	putline(fw, line);
 	getline(buf, sizeof(buf), fr);
 	if (strncmp(buf, "-ERR", 4) == 0) {
-	    if (strstr(buf, "APOP") != NULL)
-		fprintf(stderr, "%s.\n", buf + 5);
-	    else
-		fprintf(stderr, "User \"%s\" not found at the server.\n", ruser);
+	    fprintf(stderr, "%s: %s\n", ruser, buf);
 	    putline(fw, "QUIT");
 	    exit(1);
 	}
-	sprintf(line, "RPOP %s", user);
+
+	if (rpop) {
+	    sprintf(line, "RPOP %s", user);
+	} else {
+	    sprintf(line, "PASS %s", pass);
+	}
 	putline(fw, line);
 	getline(buf, sizeof(buf), fr);
 	if (strncmp(buf, "-ERR", 4) == 0) {
-	    fprintf(stderr, "Server denied the RPOP access.\n");
+	    fprintf(stderr, "%s: %s\n", ruser, buf);
 	    putline(fw, "QUIT");
 	    exit(1);
 	}
@@ -845,78 +856,31 @@ cleanup(int sig)
 
 void initbase64(void)
 {
-    base['A'] = 0;
-    base['R'] = 17;
-    base['i'] = 34;
-    base['z'] = 51;
-    base['B'] = 1;
-    base['S'] = 18;
-    base['j'] = 35;
-    base['0'] = 52;
-    base['C'] = 2;
-    base['T'] = 19;
-    base['k'] = 36;
-    base['1'] = 53;
-    base['D'] = 3;
-    base['U'] = 20;
-    base['l'] = 37;
-    base['2'] = 54;
-    base['E'] = 4;
-    base['V'] = 21;
-    base['m'] = 38;
-    base['3'] = 55;
-    base['F'] = 5;
-    base['W'] = 22;
-    base['n'] = 39;
-    base['4'] = 56;
-    base['G'] = 6;
-    base['X'] = 23;
-    base['o'] = 40;
-    base['5'] = 57;
-    base['H'] = 7;
-    base['Y'] = 24;
-    base['p'] = 41;
-    base['6'] = 58;
-    base['I'] = 8;
-    base['Z'] = 25;
-    base['q'] = 42;
-    base['7'] = 59;
-    base['J'] = 9;
-    base['a'] = 26;
-    base['r'] = 43;
-    base['8'] = 60;
-    base['K'] = 10;
-    base['b'] = 27;
-    base['s'] = 44;
-    base['9'] = 61;
-    base['L'] = 11;
-    base['c'] = 28;
-    base['t'] = 45;
-    base['+'] = 62;
-    base['M'] = 12;
-    base['d'] = 29;
-    base['u'] = 46;
-    base['/'] = 63;
-    base['N'] = 13;
-    base['e'] = 30;
-    base['v'] = 47;
-    base['O'] = 14;
-    base['f'] = 31;
-    base['w'] = 48;
-    base['P'] = 15;
-    base['g'] = 32;
-    base['x'] = 49;
-    base['Q'] = 16;
-    base['h'] = 33;
-    base['y'] = 50;
+    base['A'] = 0;  base['R'] = 17; base['i'] = 34; base['z'] = 51;
+    base['B'] = 1;  base['S'] = 18; base['j'] = 35; base['0'] = 52;
+    base['C'] = 2;  base['T'] = 19; base['k'] = 36; base['1'] = 53;
+    base['D'] = 3;  base['U'] = 20; base['l'] = 37; base['2'] = 54;
+    base['E'] = 4;  base['V'] = 21; base['m'] = 38; base['3'] = 55;
+    base['F'] = 5;  base['W'] = 22; base['n'] = 39; base['4'] = 56;
+    base['G'] = 6;  base['X'] = 23; base['o'] = 40; base['5'] = 57;
+    base['H'] = 7;  base['Y'] = 24; base['p'] = 41; base['6'] = 58;
+    base['I'] = 8;  base['Z'] = 25; base['q'] = 42; base['7'] = 59;
+    base['J'] = 9;  base['a'] = 26; base['r'] = 43; base['8'] = 60;
+    base['K'] = 10; base['b'] = 27; base['s'] = 44; base['9'] = 61;
+    base['L'] = 11; base['c'] = 28; base['t'] = 45; base['+'] = 62;
+    base['M'] = 12; base['d'] = 29; base['u'] = 46; base['/'] = 63;
+    base['N'] = 13; base['e'] = 30; base['v'] = 47;
+    base['O'] = 14; base['f'] = 31; base['w'] = 48;
+    base['P'] = 15; base['g'] = 32; base['x'] = 49;
+    base['Q'] = 16; base['h'] = 33; base['y'] = 50;
 }
 
 /* cut from MH/uip/popsbr.c */
 char *
  pop_auth(char *user, char *pass, char *response)
 {
-    register char *cp, *lp;
-    register unsigned char *dp;
+    char *cp, *lp;
+    unsigned char *dp;
     unsigned char *ep, digest[16];
     MD5_CTX mdContext;
     static char buffer[BUFSIZ];
