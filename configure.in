@@ -1,7 +1,8 @@
 # Configuration for from
 AC_INIT(from, 1.99.0)
 AC_CONFIG_SRCDIR(from.c)
-AM_INIT_AUTOMAKE
+AM_INIT_AUTOMAKE(from, 1.99.0)
+dnl AM_INIT_AUTOMAKE
 
 # Versions of autoconf before 2.12 had bugs in autoheader that screwed up
 # the production of headers/config.h.in.
@@ -14,11 +15,11 @@ AC_PREREQ(2.12)
 # If config.h.in needs to be regenerated (because of changes in configure.in
 # or headers/acconfig.h, use the command `autoheader -l headers'.
 #
-AC_CONFIG_HEADER(config.h)
+AM_CONFIG_HEADER(config.h)
 
 # config.h turns this on, so make sure it's on for our tests too
 #CPPFLAGS=-D_BSD_SOURCE
-CPPFLAGS=-Wall
+CPPFLAGS="-D_BSD_SOURCE -Wall"
 
 # The list of subdirs that may be built, split into subsets (which the user
 # may select for compilation at config or make time); the composite list of
@@ -61,7 +62,7 @@ AC_HEADER_STDC
 AC_HEADER_TIME
 AC_HEADER_TIOCGWINSZ
 
-AC_CHECK_HEADERS(sys/time.h sys/socket.h arpa/inet.h)
+AC_CHECK_HEADERS(sys/time.h sys/socket.h arpa/inet.h paths.h)
 AC_CHECK_FUNCS(strchr memcpy)
 
 AC_CHECK_FUNC(inet_ntoa, ,
@@ -72,7 +73,7 @@ AC_CHECK_FUNC(socket, ,
   AC_CHECK_LIB(socket, socket, ,
     AC_MSG_ERROR([Your system is not support socket().])))
 
-if test -n "${with_openssl+set}"; then
+if test -n "${with_openssl+set}" -o -n "${enable_ssl+set}"; then
   AC_CHECK_LIB(ssl, BIO_new,
     [AC_DEFINE(WITH_OPENSSL, 1, [use OpenSSL library]) LIBS="-lssl $LIBS"
      if test -n "${enable_ssl+set}"; then

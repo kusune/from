@@ -1,8 +1,16 @@
 #include "common.h"
 
-#include <paths.h>	/* _PATH_TTY */
 #include <fcntl.h>	/* open() */
 #include <unistd.h>	/* close() */
+
+#ifdef HAVE_PATHS_H
+# include <paths.h>	/* _PATH_TTY */
+#endif
+#ifndef _PATH_TTY
+# define _PATH_TTY	"/dev/tty"
+#endif
+
+#include <sys/ttold.h>
 
 #if HAVE_TERMIOS_H
 # include <termios.h>

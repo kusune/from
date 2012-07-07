@@ -26,7 +26,7 @@ char *parse_from(char *from)
     if (strlen(from) <= strlen("From:"))
 	return "";
     from += strlen("From:");
-    while (isspace(*from))
+    while (isspace((int)*from))
 	from++;
     if ((p = strchr(from, '<')) != NULL) {
 	from = p + 1;
@@ -34,7 +34,7 @@ char *parse_from(char *from)
 	    *p = NUL;
     }
     /* valid only first word -- email address */
-    for (p = from; *p && !isspace(*p);)
+    for (p = from; *p && !isspace((int)*p);)
 	p++;
     for (; p < from + MAXFROMLEN;)
 	*p++ = ' ';
@@ -55,12 +55,12 @@ char *parse_date(char *date)
     if (strlen(date) <= strlen("Date:"))
 	return "";
     date += strlen("Date:");
-    while (isspace(*date))
+    while (isspace((int)*date))
 	date++;
     p = strchr(date, ',');
     if (p) {
 	date = p + 1;
-	while (isspace(*date))
+	while (isspace((int)*date))
 	    date++;
     }
     sscanf(date, "%d %3s %d %d:%d", &dd, mm, &yy, &hour, &minute);
@@ -79,7 +79,7 @@ char *parse_subj(char *subj, int width)
 
     kanji = 0;
     subj += strlen("Subject:");
-    while (isspace(*subj))
+    while (isspace((int)*subj))
 	subj++;
     for (p = subj;;) {
 	if (strncmp(p, "\033$@", 3) == 0 || strncmp(p, "\033$B", 3) == 0) {
@@ -96,10 +96,10 @@ char *parse_subj(char *subj, int width)
 	    }
 	    p += 2;
 	    width -= 2;
-	} else if (isspace(*p) && width != 0) {
+	} else if (isspace((int)*p) && width != 0) {
 	    *p++ = ' ';
 	    width -= 1;
-	    if (isspace(*p) && width != 0) {
+	    if (isspace((int)*p) && width != 0) {
 		*p++ = ' ';
 		width -= 1;
 	    }

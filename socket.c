@@ -17,7 +17,7 @@ int bindpriv(int s, int family)
     struct sockaddr_in sr;
     int port;
 
-    bzero(&sr, sizeof(sr));
+    memset(&sr, 0, sizeof(sr));
     sr.sin_family = family;
 
     for (port = IPPORT_RESERVED - 1; port <= IPPORT_RESERVED / 2; --port) {

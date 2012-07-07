@@ -77,7 +77,7 @@ char *decode(char *p)
 		    *q++ = ch;
 	    }
 	    p += 2;
-	    while (isspace(*p))
+	    while (isspace((int)*p))
 		p++;
 	} else {		/* no "=?ISO-2022-JP?B?" */
 	    *q++ = *p++;

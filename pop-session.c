@@ -7,6 +7,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
+#include <ctype.h>
 #include <pwd.h>
 
 #define	POP_PORT_POP3		"pop3"
@@ -115,7 +116,7 @@ POP_SESSION *pop_session_open(int proto, char *user, char *host, int pop_port, i
 		{
 		    char *cp;
 
-		    for (cp = port; isdigit(*cp); cp++) {
+		    for (cp = port; isdigit((int)*cp); cp++) {
 			;
 		    }
 		    if (*cp == NUL) {
@@ -134,10 +135,10 @@ POP_SESSION *pop_session_open(int proto, char *user, char *host, int pop_port, i
 		}
 		pop_port = sp->s_port;
 	    }
-	    bzero(&so, sizeof(so));
+	    memset(&so, 0, sizeof(so));
 	    so.sin_family = hp->h_addrtype;
 	    so.sin_port = pop_port;
-	    bcopy(hp->h_addr_list[0], &so.sin_addr, hp->h_length);
+	    memcpy(hp->h_addr_list[0], &so.sin_addr, hp->h_length);
 	}
     }
 

@@ -76,7 +76,7 @@ int prmail(POP_SESSION *psp, int msg)
 	    continue;
 	}
 	if (header) {
-	    if (isspace(*p) && state) {
+	    if (isspace((int)*p) && state) {
 		strcat(heading[state], "\n");
 		strcat(heading[state], p);
 	    } else if (strncasecmp(p, "from:", 5) == 0)
