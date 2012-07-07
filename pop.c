@@ -414,10 +414,10 @@ int pop_recvmlresp(POP_SESSION *psp)
 char *pop_make_digest(POP_SESSION *psp, char *pass, char *response)
 {
     char *cp, *lp;
-    unsigned char digest[DIGESTLEN];
-    static unsigned char digeststr[DIGESTLEN*2+1];
+    char digest[DIGESTLEN];
+    static char digeststr[DIGESTLEN*2+1];
     MD5_CTX mdContext;
-    unsigned char *buffer;
+    char *buffer;
 
     if ((cp = strchr(response, '<')) == NULL || (lp = strchr(cp, '>')) == NULL) {
 	__pop_set_error_misc(psp, POP_ERR_PROTO, "APOP is not available");
